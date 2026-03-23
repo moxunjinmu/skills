@@ -1,0 +1,55 @@
+{
+  "_comment": "OpenClaw 配置示例 - 添加智谱 ASR 自动转录",
+  "_note": "将此配置合并到 ~/.openclaw/openclaw.json 中",
+
+  "skills": {
+    "_comment": "配置智谱 ASR 的 API Key",
+    "zhipu-asr": {
+      "apiKey": "YOUR_ZHIPU_API_KEY_HERE"
+    }
+  },
+
+  "tools": {
+    "media": {
+      "audio": {
+        "enabled": true,
+        "maxBytes": 26214400,
+        "_comment": "最大文件大小 25MB (26214400 bytes)",
+
+        "models": [
+          {
+            "_comment": "智谱 ASR 作为首选转录模型",
+            "type": "cli",
+            "command": "bash",
+            "args": [
+              "/root/.openclaw/skills/zhipu-asr/transcribe.sh",
+              "{{MediaPath}}"
+            ],
+            "timeoutSeconds": 120,
+            "_comment": "超时时间 120 秒"
+          },
+          {
+            "_comment": "可选：添加 Whisper CLI 作为备选方案",
+            "type": "cli",
+            "command": "whisper",
+            "args": ["--model", "base", "{{MediaPath}}"],
+            "timeoutSeconds": 45
+          }
+        ],
+
+        "_comment": "多附件处理配置",
+        "attachments": {
+          "mode": "first",
+          "_comment": "模式: first=只处理第一个, all=处理所有",
+          "maxAttachments": 5,
+          "_comment": "最多处理 5 个语音附件"
+        },
+
+        "scope": {
+          "default": "allow",
+          "rules": []
+        }
+      }
+    }
+  }
+}
