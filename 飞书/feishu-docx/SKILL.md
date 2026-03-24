@@ -119,6 +119,15 @@ license: Proprietary
 
 操作脚本：`scripts/feishu-bitable.py`
 
+### 支持的记录操作
+
+- `list-records`：列出记录
+- `create-record`：创建记录
+- `update-record`：更新记录
+- `delete-record`：删除单条记录
+- `batch-delete-records`：批量删除记录（一次最多 500 条）
+- `create-duplex-link`：创建双向关联字段（type 21）
+
 ### 字段管理
 
 - 主键字段（is_primary=true）不能删除，只能改名

@@ -45,6 +45,15 @@ source ~/.zshrc
 
 ### 方式 1：命令行工具
 
+#### 多维表格记录操作
+```bash
+cd ~/.agents/skills/feishu-docx/scripts
+python3 feishu-bitable.py list-records <app_token> <table_id>
+python3 feishu-bitable.py delete-record <app_token> <table_id> <record_id>
+python3 feishu-bitable.py batch-delete-records <app_token> <table_id> '["rec1","rec2"]'
+python3 feishu-bitable.py create-duplex-link <app_token> <table_id> "关联提示词" <target_table_id>
+```
+
 #### 创建新文档
 ```bash
 cd ~/.agents/skills/feishu-docx/scripts
