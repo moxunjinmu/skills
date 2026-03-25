@@ -364,6 +364,7 @@
 - 涉及 Wiki 节点创建 / 文档挂载
 - 涉及 Git push / pull / merge
 - 执行过类似操作超过 2 次
+- 涉及 wiki API 传入 obj_token 后另建文档的场景（必须核实 wiki 节点实际对应的 doc_token）
 
 **拦截动作：**
 1. 停下来，找到对应 SOP 文档
