@@ -1,0 +1,18 @@
+{
+  "defaultProvider": "zhipu",
+  "outputDir": "/tmp/image-gen",
+  "providers": {
+    "zhipu": {
+      "apiKey": "94d89960ce884de0a7f96acd82dccae9.Gdnleq2rJmJUvX86",
+      "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+      "defaultModel": "glm-image",
+      "models": ["glm-image", "cogview-4-250304", "cogview-3-flash"]
+    },
+    "openai": {
+      "apiKey": "",
+      "baseUrl": "https://api.openai.com/v1",
+      "defaultModel": "gpt-image-1.5",
+      "models": ["gpt-image-1.5", "dall-e-3"]
+    }
+  }
+}

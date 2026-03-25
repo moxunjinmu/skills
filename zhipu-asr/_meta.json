@@ -1,0 +1,7 @@
+{
+  "ownerId": "zhipu-asr-skill",
+  "slug": "zhipu-asr",
+  "version": "1.0.0",
+  "publishedAt": 1738988400000,
+  "description": "智谱 AI 语音识别 - 使用 GLM-ASR-2512 模型进行语音转文字"
+}
