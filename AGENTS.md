@@ -390,10 +390,60 @@
 
 ---
 
+## 触发词写入规则
+
+当 Boss 说出以下词时，立即判断类型并写入对应文件，不靠记忆：
+
+| Boss 说的关键词 | 写入位置 |
+|---------------|---------|
+| `记住` `记牢` `规定` `原则` | 判断类型后写入对应文件 |
+| 工具/路径/端口/设备 | `TOOLS.md` |
+| Boss 偏好/习惯 | `USER.md` |
+| 我的工作规则 | `AGENTS.md` |
+| 重要决策/长期事实 | `MEMORY.md` |
+| 项目进度/卡点 | `memory/projects/<项目名>.md` |
+| 人物/服务档案 | `memory/entities/<名称>.md` |
+| 今日上下文 | `memory/YYYY-MM-DD.md` |
+
+---
+
 ## Thin-Index Principle
 
 Keep frequently injected files lean:
 - `MEMORY.md` only stores durable rules and conclusions
+- `AGENTS.md` only stores high-frequency operating rules
 - Detailed workflows belong in `docs/workflows/`
-- Detailed references belong in `docs/references/`
+- Long references belong in `docs/references/`
 - Searchable historical detail belongs in `memory/` and `memory/topics/`
+
+---
+
+## 项目级任务同步规则
+
+每个项目级任务在执行前必须同步到飞书看板。
+
+触发条件（满足任一）：
+- 多步骤任务
+- 跨时间窗口
+- 需要后续追踪
+- Boss 明确分配的项目任务
+
+必做动作：
+1. 更新 `memory/task-status.json`
+2. 同步到飞书看板：Bitable `QtjEbxrqeanBzYs3qOCcDzDrnGh / tblBkiJT8REzBDkR`
+3. 使用任务 ID 格式：`MO-YYYYMMDD-SNXXX`
+
+**未同步看板前不得开始项目级工作。**
+
+---
+
+## Completion Checklist
+
+每个非平凡任务完成后必须逐项检查：
+
+- 是否产生了新规则/决策？ → 写入对应文件
+- 是否改变了工具/环境/路径/ID/配置？ → 更新 `TOOLS.md`
+- 是否揭示了 Boss 偏好？ → 更新 `USER.md`
+- 是否改进了我的工作流？ → 更新 `AGENTS.md` 或 `docs/`
+- 是否需要详细记录？ → 写入 `docs/` 或 `memory/topics/`
+- 文件变更是否成功验证？
