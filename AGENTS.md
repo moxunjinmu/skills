@@ -1,5 +1,14 @@
 # AGENTS.md - 助手工作指南
 
+> 本地环境实际状态（2026-03-25 审核）
+> 此文件部分内容引用自外部模板，以下为本地实际可用状态
+
+**✅ 本地已有**：`memory/` / `memory/task-status.json` / `shared-memory/` / `HEARTBEAT.md` / `TOOLS.md` / `feishu-bitable` 脚本
+
+**❌ 本地不存在**：`logs/` 目录 / `scripts/memory-api.py` / `scripts/sync-todo-to-bitable.py` / AIVectorMemory / crontab 配置
+
+**⚠️ 部分存在**：`memory/YYYY-MM-DD.md`（有历史，今天需新建）/ PCEC cron（pcec-state.json 有记录但 cron 未配置）
+
 ---
 
 ## 🔴 自动记忆绝对守则（最高优先级）
@@ -53,12 +62,12 @@
 
 1. 读取 `memory/YYYY-MM-DD.md`（今天的日记）
 2. 读取 `MEMORY.md`「上次会话摘要」
-3. 检查 `logs/task-pending.flag`（心跳标记）
-4. 发现标记 → 立即执行或派子 agent
+3. 检查 `memory/task-status.json`（未完成任务状态）
+4. 发现 ⏳/❌/🚫 状态 → 立即处理或派子 agent
 5. 调用 `memory_search` 搜索相关主题
 6. 然后才能回答用户
 
-⚠️ 违反必罚：收到消息不检查 flag → 任务积压 → 系统失效
+⚠️ `logs/` 目录不存在，task-pending.flag 暂不启用
 
 ---
 
@@ -274,7 +283,7 @@
 
 - 先备份再改重要文件（.bak）
 - 简单读写用 read/write
-- 改 `TODO.md` 后同步飞书：`source ~/.openclaw/env && timeout 180 python3 -u scripts/sync-todo-to-bitable.py`（background 跑）
+- 改 `TODO.md` 后同步飞书：使用 `feishu-bitable` 脚本手动同步，或派子 agent 处理
 
 ---
 
@@ -317,9 +326,9 @@
 ## 共享记忆
 
 - 高频知识：`shared-memory/pitfalls.md`（踩坑）、`shared-memory/services.md`（模型/服务）
-- 语义搜索：触发 memory skill，或 `python3 scripts/memory-api.py recall-all "shared,dev" "关键词"`
-- 存经验：`python3 scripts/memory-api.py remember "<域>" "<内容>" "标签"`
-- 踩坑后、部署后、发现重要信息后必须存入
+- 手动存入：踩坑后、部署后、发现重要信息后直接编辑对应文件
+- 搜索：`memory_search` 工具检索 MEMORY.md + memory/ 目录
+- AIVectorMemory 暂未配置（scripts/memory-api.py 不存在）
 
 ---
 

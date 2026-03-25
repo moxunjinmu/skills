@@ -25,9 +25,7 @@
 触发条件：可复用的经验教训 / 工具/API 的非预期行为 / 性能优化发现 / 新的最佳实践 / 跨系统集成关键配置
 
 调用方式：
-```bash
-python3 scripts/memory-api.py remember "域" "内容" "标签"
-```
+直接编辑 `shared-memory/pitfalls.md` 或 `shared-memory/services.md`，触发词写入对应文件。
 
 ## 存储位置
 

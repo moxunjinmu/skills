@@ -31,5 +31,5 @@
 新会话必须检查未完成任务：
 
 1. 昨天的 memory 文件（搜索「⏳」「❌」「🚫」「⏸️」）
-2. `logs/task-pending.flag`（心跳生成的任务标记）
-3. `logs/task-status.json`（任务状态详情）
+2. `memory/task-status.json`（任务状态详情）
+3. `memory/pcec-state.json`（PCEC 周期状态）
