@@ -47,10 +47,12 @@ tags:
 
 | level | 说明 |
 |-------|------|
-| `pcpec` | PCEC 级别（最高） |
+| `pcec` | PCEC 级别（最高） |
 | `ppec` | PPEC 级别 |
 | `piec` | PIEC 级别 |
 | `psec` | PSEC 级别 |
+
+> ⚠️ PCEC 已统一为 `pcec`（旧 `pcpec` 已废弃）。
 
 ### data 字段示例
 

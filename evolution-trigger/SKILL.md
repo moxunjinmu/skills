@@ -155,11 +155,13 @@ when:
 
 ```bash
 # 检查指定层级是否应触发
-evolution-trigger check --mode pcpec|ppec|piec|psec
+evolution-trigger check --mode pcec|ppec|piec|psec
 
 # 查看当前进化状态概览
 evolution-trigger status
 
 # 记录一次进化事件
-evolution-trigger log --level pcpec|ppec|piec|psec --action "动作描述"
+evolution-trigger log --level pcec|ppec|piec|psec --action "动作描述"
 ```
+
+> ⚠️ PCEC/PPEC/PIEC/PSEC 层级已在代码中统一为小写 `pcec/ppec/piec/psec`。日志记录统一使用标准事件 schema：`{ts, type, level, source, task_id, data, tags}`。
