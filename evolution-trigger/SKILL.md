@@ -18,12 +18,14 @@ when:
 
 | 触发场景 | 关键词/信号 | 对应层级 |
 |---------|------------|---------|
-| 任务完成/失败时 | 工具返回 failure / 异常 | PCEC |
+| 任务完成/失败时 | **主数据源：`memory/task-status.json`** 中任务状态变化 | PCEC |
 | 会话结束 | /new、/reset、"先这样" | PPEC |
 | Boss 主动询问 | 复盘、总结进化、检查进化、进化状态 | 任意层级 |
-| 任务失败后首次对话 | 检测到失败 flag | PCEC |
-| 每周日 20:00 | cron 定时 | PIEC |
+| 任务失败后首次对话 | `task-status.json` 检测到失败态 | PCEC |
+| 每周日 20:00 | cron 定时 + task-status 周统计 | PIEC |
 | 每月末 | cron 定时 | PSEC |
+
+> 说明：日记关键词（如“失败”“经验”“决策”）现在只作为 **fallback**，主判断优先使用 `memory/task-status.json`。
 
 ## 四层进化节奏定义
 
@@ -110,6 +112,15 @@ when:
 | PPEC | 经验规则新增 / 更新 | `memory/rules/` + `evolution-log.jsonl` |
 | PIEC | 技能迭代建议报告 | `docs/weekly-evolution.md` + `evolution-log.jsonl` |
 | PSEC | 架构评估与方向建议 | `docs/monthly-evolution.md` + `evolution-log.jsonl` |
+
+## 数据优先级
+
+1. **主数据源**：`memory/task-status.json`
+   - 用于判断任务失败、今日任务变更、本周任务量、失败率、重复失败类型
+2. **次要数据源（fallback）**：`memory/YYYY-MM-DD.md`
+   - 仅当 task-status.json 缺失、格式异常或信息不足时，才回退到关键词判断
+
+这样可以避免仅靠日记关键词“猜”任务状态，提升触发判断的真实性。
 
 ## 与现有组件的联动
 

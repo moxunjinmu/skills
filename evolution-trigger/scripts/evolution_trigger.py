@@ -6,6 +6,7 @@ pcec / ppec / piec / psec 触发检查、状态查询、事件记录
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -14,6 +15,7 @@ WORKSPACE = Path.home() / ".openclaw" / "workspace"
 MEMORY_DIR = WORKSPACE / "memory"
 STATE_FILE = MEMORY_DIR / "evolution-state.json"
 LOG_FILE = MEMORY_DIR / "evolution-log.jsonl"
+TASK_STATUS_FILE = MEMORY_DIR / "task-status.json"
 
 LEVELS = ["pcec", "ppec", "piec", "psec"]
 LEVEL_LABELS = {
@@ -22,7 +24,10 @@ LEVEL_LABELS = {
     "piec": "PIEC（中进化）",
     "psec": "PSEC（大进化）",
 }
-TZ_SH = timedelta(hours=8)
+
+FAILED_STATES = {"failed", "error", "blocked", "cancelled", "canceled", "❌", "fail"}
+DONE_STATES = {"done", "completed", "success", "finished", "✅"}
+ACTIVE_STATES = {"pending", "todo", "doing", "in_progress", "in-progress", "running", "backlog"}
 
 
 def _now():
@@ -33,13 +38,8 @@ def _today():
     return datetime.now().strftime("%Y-%m-%d")
 
 
-def _this_week_start():
-    monday = datetime.now() - timedelta(days=datetime.now().weekday())
-    return monday.strftime("%Y-%m-%d")
-
-
-def _this_month_start():
-    return datetime.now().strftime("%Y-%m") + "-01"
+def _this_week_start_date():
+    return (datetime.now() - timedelta(days=datetime.now().weekday())).date()
 
 
 def _load_state():
@@ -47,7 +47,6 @@ def _load_state():
         return {l: {"last_trigger": None, "count": 0} for l in LEVELS}
     try:
         state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        # 迁移：旧 pcpec → pcec
         if "pcpec" in state and "pcec" not in state:
             state["pcec"] = state.pop("pcpec")
         for l in LEVELS:
@@ -72,14 +71,149 @@ def _parse_dt(ts):
             raw = raw + "+08:00"
         raw = raw.replace("Z", "+00:00")
         dt = datetime.fromisoformat(raw)
-        return dt.astimezone(timezone.utc)  # 统一返回 UTC，用于计算
+        return dt.astimezone(timezone.utc)
     except Exception:
         return None
 
 
-# ── 辅助检查函数 ────────────────────────────────────────────
+def _normalize_level(level):
+    return "pcec" if level == "pcpec" else level
 
-def _has_failures_today(state):
+
+def _normalize_status(status):
+    if status is None:
+        return ""
+    return str(status).strip().lower()
+
+
+def _extract_task_json(text: str):
+    text = text.strip()
+    if text.startswith("{"):
+        return json.loads(text)
+    m = re.search(r"```json\s*(\{.*?\})\s*```", text, re.S)
+    if m:
+        return json.loads(m.group(1))
+    raise ValueError("task-status.json 中未找到可解析 JSON")
+
+
+def _load_task_status():
+    if not TASK_STATUS_FILE.exists():
+        return []
+    try:
+        raw = TASK_STATUS_FILE.read_text(encoding="utf-8")
+        data = _extract_task_json(raw)
+    except Exception:
+        return []
+
+    if isinstance(data, dict):
+        tasks = data.get("tasks") or data.get("items") or data.get("data") or []
+    elif isinstance(data, list):
+        tasks = data
+    else:
+        tasks = []
+    return [t for t in tasks if isinstance(t, dict)]
+
+
+def _task_date(task):
+    for key in ["updatedAt", "updated_at", "completedAt", "completed_at", "createdAt", "created_at", "date"]:
+        val = task.get(key)
+        if not val:
+            continue
+        dt = _parse_dt(str(val))
+        if dt:
+            return dt.date()
+        try:
+            return datetime.fromisoformat(str(val)).date()
+        except Exception:
+            pass
+    return None
+
+
+def _task_type(task):
+    for key in ["task_type", "type", "category", "source"]:
+        val = task.get(key)
+        if val:
+            return str(val)
+    return "unknown"
+
+
+def _task_status_value(task):
+    for key in ["status", "state", "result"]:
+        if key in task:
+            return _normalize_status(task.get(key))
+    return ""
+
+
+# ── task-status 驱动逻辑（主数据源）────────────────────────────
+
+def _has_recent_failed_task(_state):
+    tasks = _load_task_status()
+    if not tasks:
+        return False
+    latest_failed = None
+    for task in tasks:
+        status = _task_status_value(task)
+        if status in FAILED_STATES:
+            dt = _task_date(task)
+            if latest_failed is None or ((dt or datetime.min.date()) > (latest_failed or datetime.min.date())):
+                latest_failed = dt
+    if latest_failed is None:
+        return False
+    return (datetime.now().date() - latest_failed).days <= 7
+
+
+def _has_task_change_today(_state):
+    tasks = _load_task_status()
+    today = datetime.now().date()
+    for task in tasks:
+        dt = _task_date(task)
+        if dt == today:
+            return True
+    return False
+
+
+def _week_task_count(_state, min_count=5):
+    tasks = _load_task_status()
+    week_start = _this_week_start_date()
+    count = 0
+    for task in tasks:
+        dt = _task_date(task)
+        if dt and dt >= week_start:
+            count += 1
+    return count >= min_count
+
+
+def _week_failure_rate(_state, threshold=0.3):
+    tasks = _load_task_status()
+    week_start = _this_week_start_date()
+    total = 0
+    failed = 0
+    for task in tasks:
+        dt = _task_date(task)
+        if dt and dt >= week_start:
+            total += 1
+            if _task_status_value(task) in FAILED_STATES:
+                failed += 1
+    if total == 0:
+        return False
+    return (failed / total) >= threshold
+
+
+def _week_repeated_failure_type(_state, min_repeat=2):
+    tasks = _load_task_status()
+    week_start = _this_week_start_date()
+    counts = {}
+    for task in tasks:
+        dt = _task_date(task)
+        if dt and dt >= week_start and _task_status_value(task) in FAILED_STATES:
+            t = _task_type(task)
+            counts[t] = counts.get(t, 0) + 1
+    return any(v >= min_repeat for v in counts.values())
+
+
+# ── fallback：日记关键词（次要数据源）──────────────────────────
+
+def _has_failures_today_fallback(_state):
     diary = WORKSPACE / "memory" / f"{_today()}.md"
     if not diary.exists():
         return False
@@ -90,7 +224,7 @@ def _has_failures_today(state):
         return False
 
 
-def _has_new_experience_today(state):
+def _has_new_experience_today_fallback(_state):
     diary = WORKSPACE / "memory" / f"{_today()}.md"
     if not diary.exists():
         return False
@@ -101,7 +235,7 @@ def _has_new_experience_today(state):
         return False
 
 
-def _has_decisions_today(state):
+def _has_decisions_today_fallback(_state):
     diary = WORKSPACE / "memory" / f"{_today()}.md"
     if not diary.exists():
         return False
@@ -122,66 +256,26 @@ def _pcec_cooldown(state, hours=6):
     return (datetime.now().astimezone(timezone.utc) - dt).total_seconds() > hours * 3600
 
 
-def _count_events_in_log(since_ts, level=None):
-    if not LOG_FILE.exists():
-        return 0
-    count = 0
-    try:
-        for line in LOG_FILE.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                ev = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            ts = ev.get("ts") or ev.get("timestamp") or ""
-            # 兼容旧日志时间格式
-            if ts:
-                try:
-                    dt = _parse_dt(ts)
-                    if dt is None:
-                        continue
-                    ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00")) if "Z" in ts or "+" in ts else None
-                    if ts_dt:
-                        if ts_dt < _parse_dt(since_ts):
-                            continue
-                except Exception:
-                    continue
-            if level is None or ev.get("level") in (level, _normalize_level(level)):
-                count += 1
-    except IOError:
-        pass
-    return count
-
-
-def _normalize_level(level):
-    if level == "pcpec":
-        return "pcec"
-    return level
-
-
-# ── 触发条件映射 ────────────────────────────────────────────
-
 TRIGGER_MAP = {
     "pcec": [
-        ("今日有失败教训记录", _has_failures_today),
+        ("task-status.json 显示最近存在失败任务", _has_recent_failed_task),
+        ("fallback：今日日记有失败教训记录", _has_failures_today_fallback),
         ("距上次 PCEC 触发已超 6 小时", lambda s: _pcec_cooldown(s, hours=6)),
-        ("强制指定检查", lambda s: True),
     ],
     "ppec": [
-        ("今日有新经验记录", _has_new_experience_today),
-        ("今日有失败教训", _has_failures_today),
-        ("今日有决策记录", _has_decisions_today),
+        ("task-status.json 显示今日有任务变更", _has_task_change_today),
+        ("fallback：今日有新经验记录", _has_new_experience_today_fallback),
+        ("fallback：今日有失败教训", _has_failures_today_fallback),
+        ("fallback：今日有决策记录", _has_decisions_today_fallback),
     ],
     "piec": [
-        # TODO (P1): 接入真实任务系统，不再靠日记关键词
-        ("本周任务总数 > 5", lambda s: True),  # 占位，需 P1 真实指标
-        ("强制检查 PIEC", lambda s: True),
+        ("本周任务总数 ≥ 5（来自 task-status.json）", lambda s: _week_task_count(s, min_count=5)),
+        ("本周失败率 ≥ 30%（来自 task-status.json）", lambda s: _week_failure_rate(s, threshold=0.3)),
+        ("本周存在重复失败任务类型（来自 task-status.json）", lambda s: _week_repeated_failure_type(s, min_repeat=2)),
     ],
     "psec": [
-        # TODO (P1): 接入真实任务系统
-        ("强制检查 PSEC", lambda s: True),
+        # TODO (P2): 接入更长周期真实指标（30天任务成功率、技能频率、用户反馈）
+        ("PSEC 暂未接入月度真实指标，需人工触发/后续扩展", lambda s: False),
     ],
 }
 
@@ -210,8 +304,6 @@ ACTIONS_MAP = {
     ],
 }
 
-
-# ── 核心逻辑 ────────────────────────────────────────────────
 
 def check(mode: str) -> dict:
     mode = _normalize_level(mode)
@@ -242,6 +334,7 @@ def check(mode: str) -> dict:
 def status() -> str:
     state = _load_state()
     now_str = _now()
+    task_count = len(_load_task_status())
     lines = ["=" * 48, f"🧬 进化状态概览  —  {now_str}", "=" * 48]
     for level in LEVELS:
         info = state.get(level, {"last_trigger": None, "count": 0})
@@ -263,8 +356,8 @@ def status() -> str:
         else:
             since = "—"
         lines += [f"\n  [{level.upper()}] {label}", f"    累计触发: {count} 次", f"    上次触发: {last}", f"    距今:     {since}"]
-    lines += ["\n" + "=" * 48, "\n📁 数据文件状态:"]
-    for fname, fpath in [("状态文件", STATE_FILE), ("日志文件", LOG_FILE)]:
+    lines += ["\n" + "=" * 48, f"\n📋 task-status 数据源: {'✅ 可用' if task_count else '⚠️ 不可用/为空'}（任务数: {task_count}）", "\n📁 数据文件状态:"]
+    for fname, fpath in [("状态文件", STATE_FILE), ("日志文件", LOG_FILE), ("任务状态文件", TASK_STATUS_FILE)]:
         exists = "✅ 存在" if fpath.exists() else "❌ 不存在"
         size = f" ({fpath.stat().st_size} bytes)" if fpath.exists() else ""
         lines.append(f"   {exists} — {fname}{size}")
@@ -278,8 +371,6 @@ def log_event(level: str, action: str) -> dict:
     if not action or not action.strip():
         return {"success": False, "error": "action 不能为空"}
     now_str = _now()
-
-    # 写入统一 schema 事件
     event = {
         "ts": now_str,
         "type": "evolution",
@@ -292,22 +383,13 @@ def log_event(level: str, action: str) -> dict:
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
-
-    # 更新状态
     state = _load_state()
     state.setdefault(level, {"last_trigger": None, "count": 0})
     state[level]["last_trigger"] = now_str
     state[level]["count"] = state[level].get("count", 0) + 1
     _save_state(state)
+    return {"success": True, "event": event, "message": f"已记录 {LEVEL_LABELS.get(level)} 事件: {action.strip()}"}
 
-    return {
-        "success": True,
-        "event": event,
-        "message": f"已记录 {LEVEL_LABELS.get(level)} 事件: {action.strip()}",
-    }
-
-
-# ── CLI 入口 ────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(prog="evolution-trigger", description="🧬 四层进化节奏控制器 — pcec / ppec / piec / psec")
